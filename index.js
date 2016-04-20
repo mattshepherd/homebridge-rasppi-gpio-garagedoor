@@ -1,4 +1,7 @@
-var fs = require("fs");
+var PythonShell = require('python-shell');
+var options = {
+  scriptPath: __dirname + '/python/',
+};
 var Service, Characteristic, DoorState; // set in the module.exports, from homebridge
 
 module.exports = function(homebridge) {
@@ -12,12 +15,8 @@ module.exports = function(homebridge) {
 function RaspPiGPIOGarageDoorAccessory(log, config) {
   this.log = log;
   this.name = config["name"];
-  this.doorSwitchPin = config["doorSwitchPin"];
-  this.doorSensorPin = config["doorSensorPin"];
   this.doorPollInMs = config["doorPollInMs"];
   this.doorOpensInSeconds = config["doorOpensInSeconds"];
-  log("Door Switch Pin: " + this.doorSwitchPin);
-  log("Door Sensor Pin: " + this.doorSensorPin);
   log("Door Poll in ms: " + this.doorPollInMs);
   log("Door Opens in seconds: " + this.doorOpensInSeconds);
   this.initService();
@@ -67,12 +66,12 @@ RaspPiGPIOGarageDoorAccessory.prototype = {
   },
 
   isClosed: function() {
-    return fs.readFileSync("/sys/class/gpio/gpio"+this.doorSensorPin+"/value", "utf8").trim() == "1";
-  },
-
-  switchOff: function() {
-    fs.writeFileSync("/sys/class/gpio/gpio"+this.doorSwitchPin+"/value", "0");
-    this.log("Turning off GarageDoor Relay");
+    var currentStatus;  
+    PythonShell.run('door_status.py', options, function (err,result) {
+      if (err) throw err;
+      currentStatus = result[0];
+    });
+    return currentStatus == "1";
   },
 
   setFinalDoorState: function() {
@@ -100,8 +99,9 @@ RaspPiGPIOGarageDoorAccessory.prototype = {
             this.currentDoorState.setValue(DoorState.CLOSING);
         }
         setTimeout(this.setFinalDoorState.bind(this), this.doorOpensInSeconds * 1000);
-        fs.writeFileSync("/sys/class/gpio/gpio"+this.doorSwitchPin+"/value", "1");
-        setTimeout(this.switchOff.bind(this), 1000);
+        PythonShell.run('toggle_garage_door.py', options, function (err) {
+          if (err) throw err;
+        });
     }
 
     callback();
