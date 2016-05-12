@@ -7,6 +7,7 @@ Raspberry Pi GPIO GarageDoor plugin for [HomeBridge](https://github.com/nfarina/
   2. Install this plugin by downloading source and using: npm install -g from root of project folder
   3. Update your configuration file. See sample-config.json snippet below.
   4. Update python scripts to use gpio pins you have in your wiring setup. Note that my relay was off on high and on  with low.
+  
 # Configuration
 
 Configuration sample:
