@@ -36,8 +36,7 @@ RaspPiGPIOGarageDoorAccessory.prototype = {
         this.log("Door state changed to " + (isClosed ? "CLOSED" : "OPEN"));
         if (!this.operating) {
           this.currentDoorState.setValue(state);
-          this.targetDoorState.setValue(state);
-          this.targetState = state;
+          this.targetDoorState.setValue(state,null,false);
         }
       }
       setTimeout(this.monitorDoorState.bind(this), this.doorPollInMs);
@@ -63,7 +62,7 @@ RaspPiGPIOGarageDoorAccessory.prototype = {
       var currentStatus = result[0];
       var isClosed = (currentStatus == "1");
   	  this.currentDoorState.setValue(isClosed ? DoorState.CLOSED : DoorState.OPEN);
-  	  this.targetDoorState.setValue(isClosed ? DoorState.CLOSED : DoorState.OPEN);
+  	  this.targetDoorState.setValue(isClosed ? DoorState.CLOSED : DoorState.OPEN,null,false);
   	  this.wasClosed = isClosed;
   	  this.operating = false;
   	  setTimeout(this.monitorDoorState.bind(this), this.doorPollInMs);
@@ -97,31 +96,35 @@ RaspPiGPIOGarageDoorAccessory.prototype = {
     });
     
   },
+  
+  setState: function(state, callback, shouldTrigger) {
+    if(shouldTrigger !== undefined && shouldTrigger == false){
+      this.log("Setting state to " + state);
+      this.targetState = state;
+    }else{
+      this.log("HomeKit setting state to " + state);
+      this.targetState = state;
+      this.isClosed(function (err,result) {
+        if (err) throw err;
+        var currentStatus = result[0];
+        var isClosed = (currentStatus == "1");
+        if ((state == DoorState.OPEN && isClosed) || (state == DoorState.CLOSED && !isClosed)) {
+            this.log("Triggering GarageDoor Relay"); 
+            if (state == DoorState.OPEN) {
+                this.currentDoorState.setValue(DoorState.OPENING);
+            } else {
+                this.currentDoorState.setValue(DoorState.CLOSING);
+            }
+            this.operating = true;
+            setTimeout(this.setFinalDoorState.bind(this), this.doorOpensInSeconds * 1000);
+            PythonShell.run('toggle_garage_door.py', options, function (err) {
+              if (err) throw err;
+            });
+        }
 
-  setState: function(state, callback) {
-    this.log("Setting state to " + state);
-    this.targetState = state;
-    this.isClosed(function (err,result) {
-      if (err) throw err;
-      var currentStatus = result[0];
-      var isClosed = (currentStatus == "1");
-      if ((state == DoorState.OPEN && isClosed) || (state == DoorState.CLOSED && !isClosed)) {
-          this.log("Triggering GarageDoor Relay");
-          this.operating = true; 
-          if (state == DoorState.OPEN) {
-              this.currentDoorState.setValue(DoorState.OPENING);
-          } else {
-              this.currentDoorState.setValue(DoorState.CLOSING);
-          }
-          setTimeout(this.setFinalDoorState.bind(this), this.doorOpensInSeconds * 1000);
-          PythonShell.run('toggle_garage_door.py', options, function (err) {
-            if (err) throw err;
-          });
-      }
-
-      callback();
-    });
-    
+        callback();
+      });
+    }
     return true;
   },
 
